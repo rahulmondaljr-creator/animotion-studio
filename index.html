@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Animotion Studio AI</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#0e1524;color:#eaf0f8;font-family:Arial,sans-serif;user-select:none}
+button{background:#00e5a0;border:none;border-radius:10px;padding:10px 14px;font-weight:bold;font-size:14px;color:#08251c;cursor:pointer}
+button.sec{background:#22314d;color:#cfe0f5}
+button.danger{background:#3d1520;color:#ff5b6a}
+button:disabled{opacity:.45}
+input,select{background:#16223a;border:1px solid #2b3d5e;color:#fff;border-radius:8px;padding:9px;font-size:14px}
+.topbar{display:flex;gap:6px;align-items:center;padding:8px;background:#131d31;flex-wrap:wrap;position:sticky;top:0;z-index:20}
+.topbar b{color:#00e5a0;font-size:15px;margin-right:4px}
+#wrap{display:flex;justify-content:center;background:#0a0f1c;padding:8px}
+canvas{background:#000;touch-action:none;border-radius:8px;max-width:100%}
+#props{background:#131d31;padding:10px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row label{font-size:12px;color:#9db4d4;min-width:64px}
+.row input[type=range]{flex:1;padding:0}
+.card{background:#172338;border-radius:12px;padding:16px;margin:10px}
+#home{max-width:560px;margin:0 auto;padding:12px}
+.pj{display:flex;justify-content:space-between;align-items:center;background:#172338;border-radius:10px;padding:12px;margin:8px 0;gap:6px;flex-wrap:wrap}
+.pj button{padding:7px 10px;font-size:12px}
+#modal{position:fixed;inset:0;background:rgba(5,8,15,.85);z-index:50;display:none;overflow-y:auto;padding:14px}
+#modal .box{background:#131d31;border-radius:14px;max-width:640px;margin:20px auto;padding:14px}
+.assetGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.asset{background:#1c2a44;border-radius:10px;padding:6px;text-align:center;cursor:pointer;border:2px solid transparent}
+.asset.sel{border-color:#00e5a0}
+.asset img{width:100%;border-radius:6px;background:#0a0f1c}
+.asset div{font-size:11px;color:#cfe0f5;margin-top:4px}
+h3{margin:12px 0 6px;color:#00e5a0;font-size:15px}
+.small{font-size:11px;color:#8fa3c0}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#00e5a0;color:#08251c;padding:10px 18px;border-radius:24px;font-weight:bold;display:none;z-index:99}
+</style>
+</head>
+<body>
+
+<div id="home">
+  <h2 style="color:#00e5a0;margin:6px 0">🎬 Animotion Studio AI</h2>
+  <p class="small">Phase 1 MVP — এডিটর + প্রিভিউ + সেভ/এক্সপোর্ট। Timeline/AI/voice/export পরের ফেজে।</p>
+  <div class="card">
+    <h3>নতুন প্রজেক্ট</h3>
+    <div class="row"><input id="npName" placeholder="প্রজেক্টের নাম" style="flex:1"></div>
+    <div class="row" style="margin-top:8px">
+      <select id="npAspect"><option value="16:9">16:9 (YouTube)</option><option value="9:16">9:16 (Shorts/Reels)</option><option value="1:1">1:1</option></select>
+      <button onclick="createProject()">তৈরি করো</button>
+      <button class="sec" onclick="document.getElementById('impFile').click()">ইমপোর্ট JSON</button>
+      <input type="file" id="impFile" accept=".json,application/json" style="display:none" onchange="importProject(event)">
+    </div>
+  </div>
+  <h3>আমার প্রজেক্ট</h3>
+  <div id="pjList"><p class="small">কোনো প্রজেক্ট নেই।</p></div>
+</div>
+
+<div id="editor" style="display:none">
+  <div class="topbar">
+    <b id="edName">—</b>
+    <button class="sec" onclick="ui.back()">🏠</button>
+    <button onclick="ui.openAssets('char')">👤 চরিত্র</button>
+    <button onclick="ui.openAssets('bg')">🖼️ ব্যাকগ্রাউন্ড</button>
+    <button onclick="ui.openAssets('prop')">🧺 প্রপ</button>
+    <button class="sec" onclick="ui.upload()">📤 আপলোড</button>
+    <button class="sec" onclick="ui.undo()">↩️</button>
+    <button class="sec" onclick="ui.redo()">↪️</button>
+    <button id="btnPlay" onclick="ui.togglePlay()">▶️</button>
+    <button class="sec" onclick="ui.save()">💾</button>
+    <button class="sec" onclick="ui.exportJson()">📦</button>
+  </div>
+  <div id="wrap"><canvas id="cv"></canvas></div>
+  <div id="props">
+    <div class="row">
+      <label>সিনের মেয়াদ</label><input type="range" id="pDur" min="2" max="20" value="6" oninput="ui.setDur(this.value)"><span id="pDurV" class="small">6s</span>
+    </div>
+    <div class="row">
+      <label>আকার</label><input type="range" id="pScale" min="10" max="300" value="100" oninput="ui.setProp('scale',this.value)">
+      <label>ঘূর্ণন</label><input type="range" id="pRot" min="-180" max="180" value="0" oninput="ui.setProp('rot',this.value)">
+    </div>
+    <div class="row">
+      <label>স্বচ্ছতা</label><input type="range" id="pOp" min="10" max="100" value="100" oninput="ui.setProp('opacity',this.value)">
+      <button class="sec" onclick="ui.flip()">⇋ ফ্লিপ</button>
+      <button class="sec" onclick="ui.layer(1)">⬆ লেয়ার</button>
+      <button class="sec" onclick="ui.layer(-1)">⬇</button>
+    </div>
+    <div class="row">
+      <button class="sec" id="btnEnd" onclick="ui.endPose()">🏁 শেষ পোজ সেট করো</button>
+      <button class="danger" onclick="ui.del()">🗑 মুছো</button>
+      <span class="small" id="pHint">অবজেক্ট ছুঁয়ে ধরে সরাও</span>
+    </div>
+  </div>
+</div>
+
+<div id="modal"><div class="box">
+  <div class="row" style="justify-content:space-between"><h3 id="mTitle" style="margin:0">লাইব্রেরি</h3><button class="danger" onclick="ui.closeAssets()">✕</button></div>
+  <div id="mBody"></div>
+</div></div>
+
+<div id="toast"></div>
+<input type="file" id="upFile" accept="image/*" style="display:none">
+
+<script>
+const ASSETS = { char: [], bg: [], prop: [] };
+function cv2(w, h, fn){ const c=document.createElement('canvas'); c.width=w; c.height=h; fn(c.getContext('2d'), w, h); return c.toDataURL(); }
+function person(g, skin, dress, hair, longHair){
+  g.fillStyle=dress; g.fillRect(40,70,40,60);
+  g.strokeStyle=dress; g.lineWidth=12; g.lineCap='round';
+  g.beginPath(); g.moveTo(44,80); g.lineTo(26,116); g.moveTo(76,80); g.lineTo(94,116); g.stroke();
+  g.strokeStyle='#2b3a55';
+  g.beginPath(); g.moveTo(50,130); g.lineTo(48,168); g.moveTo(70,130); g.lineTo(72,168); g.stroke();
+  g.fillStyle=hair; g.beginPath(); g.arc(60,46,24,0,7); g.fill();
+  g.fillStyle=skin; g.beginPath(); g.arc(60,50,20,0,7); g.fill();
+  if(longHair){ g.fillStyle=hair; g.fillRect(34,46,10,52); g.fillRect(76,46,10,52); }
+  g.fillStyle='#000'; g.beginPath(); g.arc(52,48,3,0,7); g.arc(68,48,3,0,7); g.fill();
+  g.fillRect(53,62,14,3);
+}
+function initAssets(){
+  ASSETS.char = [
+    {id:'c1', name:'ছেলে', url: cv2(120,190,(g)=>person(g,'#F2C99B','#3D6FB4','#2B2B2B',false))},
+    {id:'c2', name:'মেয়ে', url: cv2(120,190,(g)=>person(g,'#F2C99B','#C2537A','#5A3A1E',true))},
+    {id:'c3', name:'মহিলা', url: cv2(120,190,(g)=>person(g,'#E8B88A','#8E44AD','#2B2B2B',true))},
+    {id:'c4', name:'ভূত', url: cv2(120,190,(g)=>{ g.fillStyle='#F1F1F1'; g.beginPath(); g.arc(60,60,30,0,7); g.fill(); g.fillRect(30,60,60,80);
+      for(let i=0;i<5;i++){ g.beginPath(); g.arc(36+i*12,142,8,0,7); g.fill(); }
+      g.fillStyle='#000'; g.beginPath(); g.arc(50,56,5,0,7); g.arc(70,56,5,0,7); g.fill(); g.fillRect(52,76,16,4); })},
+    {id:'c5', name:'জম্বি', url: cv2(120,190,(g)=>person(g,'#7DA87B','#4A5D3A','#3A4A2E',false))}
+  ];
+  ASSETS.bg = [
+    {id:'b1', name:'গ্রাম (দিন)', url: cv2(640,360,(g,w,h)=>{ g.fillStyle='#8EC9E8'; g.fillRect(0,0,w,h); g.fillStyle='#FFD94A'; g.beginPath(); g.arc(560,50,26,0,7); g.fill();
+      g.fillStyle='#3E8E4E'; g.fillRect(0,280,w,80);
+      g.fillStyle='#D9C6A5'; g.fillRect(120,190,130,90); g.fillStyle='#B5552D'; g.fillRect(110,172,150,20);
+      g.fillStyle='#6B4423'; g.fillRect(420,220,14,60); g.fillStyle='#2F7D3B'; g.beginPath(); g.arc(427,200,34,0,7); g.fill(); })},
+    {id:'b2', name:'রাতের গ্রাম', url: cv2(640,360,(g,w,h)=>{ g.fillStyle='#0A0F1E'; g.fillRect(0,0,w,h); g.fillStyle='#F4F1DE'; g.beginPath(); g.arc(540,54,24,0,7); g.fill();
+      g.fillStyle='#fff'; for(let i=0;i<30;i++) g.fillRect((i*97)%w,(i*53)%150,2,2);
+      g.fillStyle='#1E2B22'; g.fillRect(0,280,w,80);
+      g.fillStyle='#3A3A4A'; g.fillRect(130,200,130,80); g.fillStyle='#1E1E2E'; g.fillRect(120,184,150,18); })},
+    {id:'b3', name:'ভূতের বাড়ি', url: cv2(640,360,(g,w,h)=>{ g.fillStyle='#070A14'; g.fillRect(0,0,w,h); g.fillStyle='#F4F1DE'; g.beginPath(); g.arc(90,60,22,0,7); g.fill();
+      g.fillStyle='#1E2B22'; g.fillRect(0,280,w,80);
+      g.fillStyle='#2A2438'; g.fillRect(230,150,190,130); g.fillStyle='#141020'; g.beginPath(); g.moveTo(215,155); g.lineTo(325,90); g.lineTo(435,155); g.fill();
+      g.fillStyle='#F5E6A8'; g.fillRect(300,190,34,42);
+      g.fillStyle='#0B0F1A'; g.fillRect(290,250,44,30);
+      g.fillStyle='#2B2B2B'; g.beginPath(); g.arc(130,250,30,0,7); g.fill(); g.fillStyle='#6B4423'; g.fillRect(126,250,8,30); })},
+    {id:'b4', name:'ঘর (ভেতর)', url: cv2(640,360,(g,w,h)=>{ g.fillStyle='#C9B18C'; g.fillRect(0,0,w,h); g.fillStyle='#8A6F4D'; g.fillRect(0,270,w,90);
+      g.fillStyle='#7A5A3A'; g.fillRect(60,190,90,80); g.fillStyle='#5B4636'; g.fillRect(150,150,10,120);
+      g.fillStyle='#BFE6F5'; g.fillRect(440,90,110,90); g.fillStyle='#8A6F4D'; g.fillRect(436,86,118,8); g.fillRect(436,180,118,8); })},
+    {id:'b5', name:'সাদা', url: cv2(640,360,(g,w,h)=>{ g.fillStyle='#F5F7FA'; g.fillRect(0,0,w,h); })}
+  ];
+  ASSETS.prop = [
+    {id:'p1', name:'গাছ', url: cv2(140,190,(g)=>{ g.fillStyle='#6B4423'; g.fillRect(62,120,16,70); g.fillStyle='#2F7D3B'; g.beginPath(); g.arc(70,90,42,0,7); g.arc(44,116,28,0,7); g.arc(96,116,28,0,7); g.fill(); })},
+    {id:'p2', name:'বাড়ি', url: cv2(200,170,(g)=>{ g.fillStyle='#D9C6A5'; g.fillRect(30,60,140,110); g.fillStyle='#B5552D'; g.fillRect(20,40,160,24);
+      g.fillStyle='#5B4636'; g.fillRect(85,110,30,60); g.fillStyle='#F5E6A8'; g.fillRect(45,85,26,26); g.fillRect(130,85,26,26); })},
+    {id:'p3', name:'বাস', url: cv2(240,150,(g)=>{ g.fillStyle='#F2B705'; g.fillRect(10,30,220,70);
+      g.fillStyle='#BFE6F5'; for(let i=0;i<4;i++) g.fillRect(24+i*50,42,34,26);
+      g.fillStyle='#222'; g.beginPath(); g.arc(60,104,16,0,7); g.arc(180,104,16,0,7); g.fill(); })},
+    {id:'p4', name:'গাড়ি', url: cv2(200,110,(g)=>{ g.fillStyle='#C94F4F'; g.fillRect(20,50,160,34); g.fillRect(55,28,90,26);
+      g.fillStyle='#222'; g.beginPath(); g.arc(55,86,13,0,7); g.arc(145,86,13,0,7); g.fill(); })},
+    {id:'p5', name:'সাইকেল', url: cv2(170,110,(g)=>{ g.strokeStyle='#333'; g.lineWidth=6;
+      g.beginPath(); g.arc(35,80,22,0,7); g.arc(135,80,22,0,7); g.stroke();
+      g.beginPath(); g.moveTo(35,80); g.lineTo(80,40); g.lineTo(135,80); g.moveTo(35,80); g.lineTo(135,80); g.stroke(); })},
+    {id:'p6', name:'সূর্য', url: cv2(110,110,(g)=>{ g.fillStyle='#FFD94A'; g.beginPath(); g.arc(55,55,34,0,7); g.fill(); })},
+    {id:'p7', name:'চাঁদ', url: cv2(110,110,(g)=>{ g.fillStyle='#F4F1DE'; g.beginPath(); g.arc(55,55,34,0,7); g.fill(); g.fillStyle='#0e1524'; g.beginPath(); g.arc(70,46,28,0,7); g.fill(); })},
+    {id:'p8', name:'মেঘ', url: cv2(170,90,(g)=>{ g.fillStyle='#EAF4FB'; g.beginPath(); g.arc(50,55,24,0,7); g.arc(85,48,28,0,7); g.arc(118,58,22,0,7); g.fill(); })}
+  ];
+}
+
+const store = {
+  KEY: 'animotion_projects_v1',
+  all(){ try{ return JSON.parse(localStorage.getItem(this.KEY)||'{}'); }catch(e){ return {}; } },
+  save(name, proj){ const a=this.all(); a[name]=proj; localStorage.setItem(this.KEY, JSON.stringify(a)); },
+  del(name){ const a=this.all(); delete a[name]; localStorage.setItem(this.KEY, JSON.stringify(a)); }
+};
+let P = null;
+let sel = null;
+let undoStack = [], redoStack = [];
+let imgCache = {};
+function img(url){ if(!imgCache[url]){ const i=new Image(); i.src=url; imgCache[url]=i; } return imgCache[url]; }
+function snap(){ return JSON.stringify({bg:P.bg, dur:P.dur, objects:P.objects}); }
+function commit(){ redoStack=[]; undoStack.push(snap()); if(undoStack.length>40) undoStack.shift(); save(true); render(); }
+function newObj(url){ return {id:'o'+Date.now()+Math.floor(Math.random()*999), url:url, x:P.w/2, y:P.h/2, scale:1, rot:0, opacity:1, flip:false, layer:nextLayer(), animate:false, ex:null, ey:null, escale:null, erot:null}; }
+function nextLayer(){ return P.objects.reduce((m,o)=>Math.max(m,o.layer),0)+1; }
+function save(silent){ if(!P) return; store.save(P.name, JSON.parse(JSON.stringify(P))); if(!silent) toast('সেভ হয়েছে'); }
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let playing=false, playT0=0;
+function render(){ if(!P) return;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(P.bg){ const b=img(P.bg); if(b.complete) drawCover(b); }
+  P.objects.slice().sort((a,b)=>a.layer-b.layer).forEach(o=>drawObj(o, 1, false));
+}
+function drawCover(b){ const s=Math.max(cv.width/b.width, cv.height/b.height); const w=b.width*s, h=b.height*s;
+  ctx.drawImage(b,(cv.width-w)/2,(cv.height-h)/2,w,h); }
+function drawObj(o, t, preview){
+  let x=o.x, y=o.y, sc=o.scale, rot=o.rot;
+  if(preview && o.animate && o.ex!=null){
+    x=o.x+(o.ex-o.x)*t; y=o.y+(o.ey-o.y)*t;
+    sc=o.scale+((o.escale??o.scale)-o.scale)*t;
+    rot=o.rot+((o.erot??o.rot)-o.rot)*t;
+  }
+  const im=img(o.url); if(!im.complete) return;
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot*Math.PI/180); ctx.scale((o.flip?-1:1)*sc, sc); ctx.globalAlpha=o.opacity;
+  ctx.drawImage(im,-im.width/2,-im.height/2); ctx.restore();
+}
+function renderFrame(t){ ctx.clearRect(0,0,cv.width,cv.height);
+  if(P.bg){ const b=img(P.bg); if(b.complete) drawCover(b); }
+  P.objects.slice().sort((a,b)=>a.layer-b.layer).forEach(o=>drawObj(o,t,true));
+}
+
+let drag=null, endPoseMode=false;
+function pos(e){ const r=cv.getBoundingClientRect(); return { x:(e.clientX-r.left)*cv.width/r.width, y:(e.clientY-r.top)*cv.height/r.height }; }
+cv.addEventListener('pointerdown', e=>{
+  if(!P) return; cv.setPointerCapture(e.pointerId);
+  const p=pos(e);
+  if(endPoseMode){ endPoseMode=false; sel.ex=p.x; sel.ey=p.y; sel.escale=sel.scale; sel.erot=sel.rot;
+    document.getElementById('btnEnd').textContent='🏁 শেষ পোজ সেট করো'; commit(); return; }
+  const hit=[...P.objects].sort((a,b)=>b.layer-a.layer).find(o=>{ const im=img(o.url); const w=im.width*o.scale/2, h=im.height*o.scale/2;
+    return Math.abs(p.x-o.x)<w && Math.abs(p.y-o.y)<h; });
+  sel=hit||null; drag=hit?{dx:p.x-hit.x, dy:p.y-hit.y}:null;
+  if(sel){ document.getElementById('pScale').value=Math.round(sel.scale*100);
+    document.getElementById('pRot').value=Math.round(sel.rot);
+    document.getElementById('pOp').value=Math.round(sel.opacity*100);
+    document.getElementById('pHint').textContent='নির্বাচিত: '+sel.id+' (লেয়ার '+sel.layer+')'; }
+  else document.getElementById('pHint').textContent='অবজেক্ট ছুঁয়ে ধরে সরাও';
+  render();
+});
+cv.addEventListener('pointermove', e=>{ if(!drag||!sel) return; const p=pos(e); sel.x=p.x-drag.dx; sel.y=p.y-drag.dy; render(); });
+cv.addEventListener('pointerup', ()=>{ if(drag){ drag=null; commit(); } });
+
+const ui = {
+  back(){ playing=false; save(true); P=null; sel=null; showHome(); },
+  undo(){ if(!undoStack.length) return toast('কিছু নেই'); redoStack.push(snap()); const s=undoStack.pop(); applySnap(s); },
+  redo(){ if(!redoStack.length) return toast('কিছু নেই'); undoStack.push(snap()); const s=redoStack.pop(); applySnap(s); },
+  setDur(v){ P.dur=+v; document.getElementById('pDurV').textContent=v+'s'; save(true); },
+  setProp(k,v){ if(!sel) return; if(k==='scale') sel.scale=+v/100; if(k==='rot') sel.rot=+v; if(k==='opacity') sel.opacity=+v/100; save(true); render(); },
+  flip(){ if(sel){ sel.flip=!sel.flip; commit(); } },
+  layer(d){ if(sel){ sel.layer=Math.max(1,sel.layer+d); commit(); } },
+  del(){ if(sel){ P.objects=P.objects.filter(o=>o.id!==sel.id); sel=null; commit(); } },
+  endPose(){ if(!sel) return toast('আগে কোনো অবজেক্ট বেছে নাও');
+    if(!endPoseMode){ endPoseMode=true; document.getElementById('btnEnd').textContent='✔ পোজ ঠিক আছে (ছুঁয়ে জায়গা বাছো)'; toast('অবজেক্টটা টেনে শেষ জায়গায় রাখো'); }
+    else { endPoseMode=false; document.getElementById('btnEnd').textContent='🏁 শেষ পোজ সেট করো'; commit(); } },
+  togglePlay(){ playing=!playing; document.getElementById('btnPlay').textContent=playing?'⏸':'▶️';
+    if(playing){ playT0=performance.now(); requestAnimationFrame(playLoop); } },
+  save(){ save(); },
+  exportJson(){ const blob=new Blob([JSON.stringify(P,null,1)],{type:'application/json'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=P.name+'.animotion.json'; a.click(); toast('JSON ডাউনলোড হয়েছে'); },
+  upload(){ document.getElementById('upFile').click(); },
+  onUpload(e){ const f=e.target.files[0]; if(!f||!P) return; const r=new FileReader();
+    r.onload=()=>{ const o=newObj(r.result); P.objects.push(o); sel=o; commit(); toast('ছবি যোগ হয়েছে'); }; r.readAsDataURL(f); e.target.value=''; },
+  openAssets(kind){ document.getElementById('modal').style.display='block';
+    document.getElementById('mTitle').textContent = kind==='char'?'চরিত্র':kind==='bg'?'ব্যাকগ্রাউন্ড':'প্রপ';
+    const body=document.getElementById('mBody'); body.innerHTML='';
+    if(kind==='bg'){ const up=document.createElement('button'); up.textContent='📤 নিজের ব্যাকগ্রাউন্ড আপলোড'; up.style.margin='8px 0';
+      up.onclick=()=>{ document.getElementById('upFile').dataset.mode='bg'; document.getElementById('upFile').click(); ui.closeAssets(); };
+      body.appendChild(up); }
+    const grid=document.createElement('div'); grid.className='assetGrid';
+    ASSETS[kind].forEach(a=>{ const d=document.createElement('div'); d.className='asset';
+      d.innerHTML='<img src="'+a.url+'"><div>'+a.name+'</div>';
+      d.onclick=()=>{ if(kind==='bg'){ P.bg=a.url; } else { const o=newObj(a.url); P.objects.push(o); sel=o; }
+        ui.closeAssets(); commit(); toast(a.name+' যোগ হয়েছে'); };
+      grid.appendChild(d); });
+    body.appendChild(grid);
+  },
+  closeAssets(){ document.getElementById('modal').style.display='none'; }
+};
+document.getElementById('upFile').addEventListener('change', function(e){
+  if(this.dataset.mode==='bg'){ const f=e.target.files[0]; if(!f) return; const r=new FileReader();
+    r.onload=()=>{ P.bg=r.result; commit(); toast('ব্যাকগ্রাউন্ড বদলেছে'); }; r.readAsDataURL(f); this.dataset.mode=''; this.value=''; return; }
+  ui.onUpload(e);
+});
+function applySnap(s){ const d=JSON.parse(s); P.bg=d.bg; P.dur=d.dur; P.objects=d.objects; sel=null; save(true); render(); }
+function playLoop(now){ if(!playing||!P) return; const t=((now-playT0)/1000)%P.dur/P.dur; renderFrame(t); requestAnimationFrame(playLoop); }
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.style.display='block';
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.display='none',1600); }
+
+function showHome(){ document.getElementById('editor').style.display='none'; document.getElementById('home').style.display='block';
+  const all=store.all(); const list=document.getElementById('pjList'); list.innerHTML='';
+  const names=Object.keys(all);
+  if(!names.length){ list.innerHTML='<p class="small">কোনো প্রজেক্ট নেই।</p>'; return; }
+  names.forEach(n=>{ const row=document.createElement('div'); row.className='pj';
+    row.innerHTML='<b>'+esc(n)+'</b>';
+    const ops=document.createElement('div');
+    ops.innerHTML='<button>খোলো</button> <button class="sec">নাম বদলো</button> <button class="sec">ডুপ্লিকেট</button> <button class="sec">JSON</button> <button class="danger">মুছো</button>';
+    const [oOpen,oRen,oDup,oExp,oDel]=ops.querySelectorAll('button');
+    oOpen.onclick=()=>openProject(n);
+    oRen.onclick=()=>{ const nn=prompt('নতুন নাম:',n); if(nn&&nn!==n){ const a=store.all(); a[nn]=a[n]; delete a[n]; localStorage.setItem(store.KEY,JSON.stringify(a)); showHome(); } };
+    oDup.onclick=()=>{ const a=store.all(); a[n+' (copy)']=JSON.parse(JSON.stringify(a[n])); localStorage.setItem(store.KEY,JSON.stringify(a)); showHome(); };
+    oExp.onclick=()=>{ const blob=new Blob([JSON.stringify(a[n],null,1)],{type:'application/json'});
+      const l=document.createElement('a'); l.href=URL.createObjectURL(blob); l.download=n+'.animotion.json'; l.click(); };
+    oDel.onclick=()=>{ if(confirm('"'+n+'" মুছে ফেলবে?')){ store.del(n); showHome(); } };
+    row.appendChild(ops); list.appendChild(row); });
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function createProject(){ const name=(document.getElementById('npName').value||'আমার প্রজেক্ট').trim();
+  const aspect=document.getElementById('npAspect').value;
+  const [w,h]=aspect==='16:9'?[1280,720]:aspect==='9:16'?[720,1280]:[1000,1000];
+  P={name:name,w:w,h:h,bg:null,dur:6,objects:[]};
+  undoStack=[]; redoStack=[]; openEditor(); save(true); showHome(); }
+function openProject(name){ const all=store.all(); if(!all[name]) return; P=all[name]; undoStack=[]; redoStack=[]; openEditor(); }
+function openEditor(){ document.getElementById('home').style.display='none'; document.getElementById('editor').style.display='block';
+  document.getElementById('edName').textContent=P.name;
+  document.getElementById('pDur').value=P.dur; document.getElementById('pDurV').textContent=P.dur+'s';
+  cv.width=P.w; cv.height=P.h;
+  const maxW=Math.min(window.innerWidth-16, 900); const s=maxW/P.w;
+  cv.style.width=maxW+'px'; cv.style.height=(P.h*s)+'px';
+  render(); }
+function importProject(e){ const f=e.target.files[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.w||!d.objects) throw 0; const name=(d.name||f.name.replace(/\..*/,''));
+      d.name=name; store.save(name,d); toast('ইমপোর্ট হয়েছে'); showHome(); }catch(err){ toast('ফাইলটা সঠিক না'); } };
+  r.readAsText(f); e.target.value=''; }
+
+initAssets(); showHome();
+</script>
+</body>
+</html>
